@@ -34,7 +34,7 @@ await writeFile(epub, await ep.generateAsync({ type: 'nodebuffer' }))
 let app
 let page
 const pageErrors = []
-async function launch() {
+async function launch(defaultHeading = '我的书架') {
   app = await electron.launch({ executablePath: electronPath, args: ['tests/launch-electron.cjs'], env: { ...process.env, SOFA_TEST_PROFILE: profile } })
   page = await app.firstWindow()
   page.setDefaultTimeout(5500)
@@ -42,11 +42,12 @@ async function launch() {
   page.on('console', message => {
     if (message.type() === 'error') console.error('页面日志', message.text())
   })
-  await page.getByRole('heading', { name: '我的书架' }).waitFor()
+  await page.getByRole('heading', { name: defaultHeading }).waitFor()
 }
 
 const button = name => page.getByRole('button', { name, exact: true })
 async function readerTap(ratio = .5, duration = 0) {
+  await page.locator('.reading-message[role="status"]').waitFor({ state: 'hidden' })
   const box = await page.locator('.reading-body').boundingBox()
   await page.mouse.move(box.x + box.width * ratio, box.y + box.height * (duration ? .25 : .4))
   await page.mouse.down()
@@ -69,6 +70,7 @@ async function choose(paths, trigger) {
   await button(trigger).click()
 }
 async function open(name) {
+  if (await page.getByRole('heading', { name: '阅读记录', exact: true }).isVisible()) await button('书架').click()
   await page.locator('.open-card').filter({ has: page.getByText(name, { exact: true }) }).click()
 }
 const optional = [process.env.SOFA_TEST_AZW, process.env.SOFA_TEST_AZW3].filter(Boolean)
@@ -97,18 +99,50 @@ try {
   await readerTap(.5, 240)
   assert.equal(await page.getByRole('navigation', { name: '阅读菜单' }).count(), 0)
   await readerTap()
+  await page.mouse.wheel(0, 80)
+  await page.getByRole('navigation', { name: '阅读菜单' }).waitFor({ state: 'detached' })
+  await readerTap()
+  await button('设置').click()
+  await page.getByLabel('段落间距').selectOption('1.5')
+  const textFrame = page.frames().find(frame => frame.url().startsWith('blob:'))
+  assert.ok(textFrame)
+  assert.equal(await textFrame.locator('p').first().evaluate(node => getComputedStyle(node).marginBottom), '30px')
+  const body = await page.locator('.reading-body').boundingBox()
+  await page.mouse.move(body.x + body.width / 2, body.y + 70)
+  await page.mouse.wheel(0, 80)
+  await page.getByRole('complementary', { name: '设置' }).waitFor({ state: 'detached' })
+  await readerTap()
   await button('全文搜索').click()
-  await page.getByLabel('搜索关键词').fill('独一无二的搜索词')
+  const search = page.getByLabel('搜索关键词')
+  await search.fill('汉'.repeat(22))
+  assert.equal(await search.inputValue(), '汉'.repeat(20))
+  await search.fill('一段测试正文')
+  await button('搜索').click()
+  await page.getByText('找到 120 条匹配').waitFor()
+  const resultList = page.locator('.search-results li')
+  assert.equal(await resultList.count(), 20)
+  for (let count = 40; count <= 120; count += 20) {
+    await page.locator('.reader-sheet').evaluate(sheet => { sheet.scrollTop = sheet.scrollHeight })
+    await page.waitForFunction(length => document.querySelectorAll('.search-results li').length === length, count)
+  }
+  assert.ok((await resultList.allTextContents()).every(text => Array.from(text).length <= 50))
+  await search.fill('独一无二的搜索词')
   await button('搜索').click()
   await page.getByText('找到 1 条匹配').waitFor()
   await page.getByRole('button', { name: /独一无二的搜索词/ }).click()
   await chapter('第二章 归来').waitFor()
   await readerTap()
   await button('目录').click()
+  assert.ok(await page.locator('.reader-settings-page[aria-label="目录"]').isVisible())
+  await page.getByRole('navigation', { name: '面包屑' }).getByRole('button', { name: '阅读' }).click()
+  await readerTap()
+  await button('目录').click()
   await button('第二章 归来').click()
   await chapter('第二章 归来').waitFor()
   await readerTap()
   await button('快速书签').click()
+  assert.equal(await button('快速书签').getAttribute('aria-pressed'), 'true')
+  assert.equal(await page.locator('.toast').textContent(), '已添加书签')
   await button('笔记').click()
   await button('写笔记').click()
   await page.getByLabel('笔记内容').fill('重读这一段。')
@@ -140,6 +174,7 @@ try {
   await button('第二章 归来').click()
   await chapter('第二章 归来').waitFor()
   await backToShelf()
+  await page.getByRole('heading', { name: '阅读记录', exact: true }).waitFor()
 
   for (const [name, label] of [['海', '海之章'], ['风', '风之章']]) {
     await open(name)
@@ -166,10 +201,14 @@ try {
   await chapter('第 2 页').waitFor()
   await readerTap()
   const progress = page.getByRole('slider', { name: '阅读进度' })
+  await button('快速书签').click()
+  assert.equal(await button('快速书签').getAttribute('aria-pressed'), 'true')
   await progress.press('Home')
   await chapter('第 1 页').waitFor()
+  assert.equal(await button('快速书签').getAttribute('aria-pressed'), 'false')
   await progress.press('End')
   await chapter('第 2 页').waitFor()
+  assert.equal(await button('快速书签').getAttribute('aria-pressed'), 'true')
   await button('全文搜索').click()
   await page.getByLabel('搜索关键词').fill('First page')
   await button('搜索').click()
@@ -186,12 +225,14 @@ try {
 
   await app.close()
   app = null
-  await launch()
+  await launch('阅读记录')
+  await button('书架').click()
   await button('小说').click()
   assert.equal(await page.locator('.book-card').count(), 1)
   await open('乙书')
   await chapter('第二章 归来').waitFor()
   await readerTap()
+  assert.equal(await button('快速书签').getAttribute('aria-pressed'), 'true')
   await button('笔记').click()
   assert.match(await page.locator('.reader-sheet').textContent(), /重读这一段。/)
   assert.equal(await page.locator('.mark').count(), 1)
@@ -207,7 +248,7 @@ try {
   await choose([moved], '重新定位原文件')
   await chapter('第二章 归来').waitFor()
   assert.deepEqual(pageErrors, [])
-  console.log('本地冒烟通过：原文件导入、分类排序、目录、连续滚动、搜索、PDF 翻页、笔记书签、最近五本、两次返回、重启续读和重新定位。')
+  console.log('本地冒烟通过：原文件导入、分类排序、全屏目录、连续滚动、分批搜索、PDF 翻页和书签填色、笔记书签、最近五本、两次返回、重启续读和重新定位。')
 } catch (error) {
   if (process.env.SOFA_TEST_SCREENSHOT) await page?.screenshot({ path: process.env.SOFA_TEST_SCREENSHOT })
   throw error

@@ -28,7 +28,7 @@ interface ShelfProps {
 }
 
 export function Shelf({ books, data, open, importBooks, busy, remove, update }: ShelfProps) {
-  const [tab, setTab] = useState<'shelf' | 'history'>('shelf')
+  const [chosenTab, setTab] = useState<'shelf' | 'history' | null>(null)
   const [filter, setFilter] = useState<string | null>(null)
   const [sort, setSort] = useState(localStorage.getItem('shelf-sort') ?? 'date')
   const [category, setCategory] = useState('')
@@ -36,6 +36,7 @@ export function Shelf({ books, data, open, importBooks, busy, remove, update }: 
     .sort((a, b) => sort === 'name' ? byTitle.compare(a.name, b.name) : b.added - a.added)
   const history = books.filter(book => data.books[book.id]?.lastRead)
     .sort((a, b) => (data.books[b.id].lastRead ?? 0) - (data.books[a.id].lastRead ?? 0)).slice(0, 5)
+  const tab = chosenTab ?? (history.length ? 'history' : 'shelf')
 
   function addCategory() {
     const name = category.trim()

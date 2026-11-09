@@ -7,7 +7,8 @@ export function bindReadingGestures(surface: HTMLElement | Document, events: Rea
   const doc = isDocument(surface) ? surface : surface.ownerDocument
   const options = { signal, passive: true, capture: true }
   let start: { x: number; y: number; time: number; id: number } | undefined
-  let edge: { x: number; y: number; id: number } | undefined
+  let scrollReported = false
+  let touchOrigin: { x: number; y: number; id: number } | undefined
   const width = () => viewport?.clientWidth ?? (isDocument(surface) ? doc.documentElement.clientWidth : surface.clientWidth)
   const localX = (x: number) => {
     if (!isDocument(surface)) return x - surface.getBoundingClientRect().left
@@ -32,16 +33,28 @@ export function bindReadingGestures(surface: HTMLElement | Document, events: Rea
     events.tap(localX(event.clientX) / width())
   }) as EventListener, options)
 
+  surface.addEventListener('wheel', ((event: WheelEvent) => {
+    if (!event.ctrlKey && (event.deltaY || event.deltaX)) events.scroll()
+  }) as EventListener, options)
   surface.addEventListener('touchstart', ((event: TouchEvent) => {
     const touch = event.touches[0]
-    edge = event.touches.length === 1 && localX(touch.clientX) <= 24
+    scrollReported = false
+    touchOrigin = event.touches.length === 1
       ? { x: touch.clientX, y: touch.clientY, id: touch.identifier } : undefined
   }) as EventListener, options)
-  surface.addEventListener('touchcancel', () => { edge = undefined }, options)
+  surface.addEventListener('touchmove', ((event: TouchEvent) => {
+    const down = touchOrigin
+    if (!down || scrollReported || event.touches.length !== 1) return
+    const touch = event.touches[0]
+    if (touch.identifier !== down.id || Math.hypot(touch.clientX - down.x, touch.clientY - down.y) <= 12) return
+    scrollReported = true
+    events.scroll()
+  }) as EventListener, options)
+  surface.addEventListener('touchcancel', () => { touchOrigin = undefined }, options)
   surface.addEventListener('touchend', ((event: TouchEvent) => {
-    const down = edge
-    edge = undefined
-    if (!down) return
+    const down = touchOrigin
+    touchOrigin = undefined
+    if (!down || localX(down.x) > 24) return
     const touch = Array.from(event.changedTouches).find(item => item.identifier === down.id)
     if (!touch) return
     const distance = touch.clientX - down.x

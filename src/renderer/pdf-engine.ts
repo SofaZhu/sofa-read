@@ -3,6 +3,7 @@ import { EventBus, PDFLinkService, PDFViewer, ScrollMode } from 'pdfjs-dist/lega
 import workerUrl from 'pdfjs-dist/legacy/build/pdf.worker.mjs?url'
 import 'pdfjs-dist/web/pdf_viewer.css'
 import type { Chapter, Settings } from './model'
+import { searchExcerpt } from './search-text'
 import { bindReadingGestures } from './reading-gestures'
 import type { ReaderEngine, ReaderEvents } from './reader-engine'
 
@@ -132,7 +133,7 @@ export function pdfEngine(host: HTMLElement, events: ReaderEvents, initial: Sett
         const haystack = text.toLocaleLowerCase()
         for (let match = haystack.indexOf(needle); match >= 0; match = haystack.indexOf(needle, match + needle.length)) {
           if (signal.aborted || lifetime.signal.aborted) return
-          yield { target, excerpt: text.slice(Math.max(0, match - 40), match + needle.length + 55).trim() }
+          yield { target, excerpt: searchExcerpt(text, match) }
         }
       }
     },

@@ -6,6 +6,7 @@ import { THEMES, type Chapter, type Settings } from './model'
 import type { ReaderEngine, ReaderEvents } from './reader-engine'
 import { bindReadingGestures } from './reading-gestures'
 import { ContinuousView } from './continuous-view'
+import { searchExcerpt } from './search-text'
 import { decodeText, makeTextBook } from './text-book'
 
 interface Relocation {
@@ -49,6 +50,7 @@ export function ebookEngine(host: HTMLElement, events: ReaderEvents, initial: Se
       }
       body, p, div, span, li, blockquote { font-size: ${next.size}px !important; }
       p { white-space: pre-wrap; }
+      ${next.paragraphSpacing === null ? '' : `p { margin-block: 0 ${next.paragraphSpacing}em !important; }`}
     `)
   }
 
@@ -159,6 +161,27 @@ export function ebookEngine(host: HTMLElement, events: ReaderEvents, initial: Se
       }
     },
     go: target => navigate(() => view.goTo(target)),
+    isVisible(target) {
+      if (!initialized || signal.aborted || typeof target !== 'string') return false
+      const location = view.resolveNavigation(target)
+      if (!location) return false
+      const renderer = view.renderer
+      const contents = renderer instanceof ContinuousView ? renderer.getVisibleDocuments() : renderer?.getContents?.()
+      const doc = contents?.find(entry => entry.index === location.index)?.doc
+      const frame = doc?.defaultView?.frameElement
+      if (!doc?.body || !frame) return false
+      try {
+        const anchor = typeof location.anchor === 'function' ? location.anchor(doc) : null
+        const point = anchor?.getClientRects()[0] ?? (anchor ?? doc.body).getBoundingClientRect()
+        const origin = frame.getBoundingClientRect()
+        const viewport = host.getBoundingClientRect()
+        const x = origin.left + point.left
+        const y = origin.top + point.top
+        return x >= viewport.left - 1 && x < viewport.right && y >= viewport.top - 1 && y < viewport.bottom
+      } catch {
+        return false
+      }
+    },
     seek: fraction => navigate(async () => {
       if (view.resolveNavigation({ fraction })) await view.goToFraction(fraction)
       else if (book) await view.goTo(Math.round(fraction * (book.sections.length - 1)))
@@ -167,6 +190,8 @@ export function ebookEngine(host: HTMLElement, events: ReaderEvents, initial: Se
       if (!book) return
       const needle = query.toLocaleLowerCase()
       for (const [index, section] of book.sections.entries()) {
+        // 无命中的长书也要定期让出界面线程。
+        if (index > 0 && index % 32 === 0) await new Promise<void>(resolve => setTimeout(resolve, 0))
         if (signal.aborted || searchSignal.aborted) return
         const doc = await section.createDocument?.()
         if (!doc?.body) continue
@@ -187,7 +212,7 @@ export function ebookEngine(host: HTMLElement, events: ReaderEvents, initial: Se
           const range = doc.createRange()
           range.setStart(node, Math.min(node.length, match - start))
           range.collapse(true)
-          yield { target: view.getCFI(index, range), excerpt: text.slice(Math.max(0, match - 40), match + needle.length + 55).trim() }
+          yield { target: view.getCFI(index, range), excerpt: searchExcerpt(text, match) }
         }
       }
     },

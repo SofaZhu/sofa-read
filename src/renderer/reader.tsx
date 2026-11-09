@@ -55,6 +55,12 @@ function ReaderStatus({ settings, position }: { settings: Settings; position?: P
   </footer>
 }
 
+function BackIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M19 12H5m7-7-7 7 7 7" />
+  </svg>
+}
+
 function ChapterList({ chapters, go }: { chapters: Chapter[]; go(target: Position['target']): void }) {
   return <ul className="chapters">{chapters.map((chapter, index) => <li key={index}>
     <button onClick={() => go(chapter.target)}>{chapter.label}</button>
@@ -86,7 +92,7 @@ export function Reader({ book, data, settings, saveSettings, savePosition, saveM
   const [preview, setPreview] = useState<number | null>(null)
   const cached = useRef<{ revision: number; file: File } | null>(null)
   const lastBack = useRef<{ method: 'click' | 'swipe'; at: number } | null>(null)
-  const interact = useRef({ tap: (_ratio: number) => {}, back: (_method: 'click' | 'swipe') => {} })
+  const interact = useRef({ tap: (_ratio: number) => {}, scroll: () => {}, back: (_method: 'click' | 'swipe') => {} })
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [missing, setMissing] = useState(false)
@@ -98,6 +104,9 @@ export function Reader({ book, data, settings, saveSettings, savePosition, saveM
   const marks = data.marks ?? []
   const theme = THEMES[settings.theme]
   const ebookMode = book.format === 'pdf' ? null : settings.mode
+  const fullPage = panel === 'more' || panel === 'toc'
+  const bookmark = position && (menu || panel === 'bookmarks') && marks.find(mark => mark.kind === 'bookmark' &&
+    (mark.position.target === position.target || engine.current?.isVisible?.(mark.position.target)))
   const dismiss = () => { setPanel(null); setMenu(false) }
   interact.current = {
     tap(ratio) {
@@ -108,6 +117,10 @@ export function Reader({ book, data, settings, saveSettings, savePosition, saveM
       }
       if (menu) setMenu(false)
       if (settings.mode === 'page' && settings.tap) move(ratio < 0.3 ? -1 : 1)
+    },
+    scroll() {
+      if (panel === 'settings') dismiss()
+      else if (!panel && menu) setMenu(false)
     },
     back(method) {
       if (draft) { setDraft(null); return }
@@ -126,6 +139,7 @@ export function Reader({ book, data, settings, saveSettings, savePosition, saveM
   }
 
   const move = useCallback((step: number) => {
+    interact.current.scroll()
     void engine.current?.step(step).catch(error => {
       console.error('无法翻页', error)
       setNotice('翻页失败，请重试。')
@@ -140,7 +154,10 @@ export function Reader({ book, data, settings, saveSettings, savePosition, saveM
       interact.current.back('click')
       return
     }
-    if (settingsRef.current.mode !== 'page') return
+    if (settingsRef.current.mode === 'scroll') {
+      if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)) interact.current.scroll()
+      return
+    }
     const step = { ArrowLeft: -1, ArrowRight: 1, PageUp: -1, PageDown: 1 }[event.key]
     if (!step) return
     event.preventDefault()
@@ -194,6 +211,7 @@ export function Reader({ book, data, settings, saveSettings, savePosition, saveM
         key,
         activity: platform.activity,
         tap: ratio => interact.current.tap(ratio),
+        scroll: () => interact.current.scroll(),
         back: () => interact.current.back('swipe')
       }
       if (!host.current) return
@@ -276,7 +294,6 @@ export function Reader({ book, data, settings, saveSettings, savePosition, saveM
 
   function addBookmark() {
     if (!position) return
-    const bookmark = marks.find(mark => mark.kind === 'bookmark' && mark.position.target === position.target)
     if (bookmark) {
       saveMarks(marks.filter(mark => mark.id !== bookmark.id))
       setNotice('已移除当前位置的书签')
@@ -297,10 +314,10 @@ export function Reader({ book, data, settings, saveSettings, savePosition, saveM
 
   return <main className="reader" style={{ '--paper': settings.background || theme.bg, '--ink': theme.fg, '--brightness': settings.brightness / 100 } as CSSProperties}>
     {(menu || error) && !panel && <header className="reader-toolbar">
-      <button aria-label="返回书库" onClick={() => interact.current.back('click')}>‹</button>
+      <button className="reader-back" aria-label="返回书库" onClick={() => interact.current.back('click')}><BackIcon /></button>
       <strong title={book.name}>{book.name}</strong>
       <div>
-        <button aria-label="快速书签" title="快速书签" disabled={!active || !position} onClick={addBookmark}><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M6 3h12v18l-6-4-6 4z" /></svg></button>
+        <button aria-label="快速书签" title="快速书签" aria-pressed={!!bookmark} disabled={!active || !position} onClick={addBookmark}><svg aria-hidden="true" viewBox="0 0 24 24" fill={bookmark ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.6"><path d="M6 3h12v18l-6-4-6 4z" /></svg></button>
         <button aria-label="全文搜索" title="全文搜索" disabled={!active} onClick={() => setPanel('search')}><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" /></svg></button>
       </div>
     </header>}
@@ -333,21 +350,25 @@ export function Reader({ book, data, settings, saveSettings, savePosition, saveM
           .map(([value, icon, label]) => <button key={value} onClick={() => setPanel(value)}><span aria-hidden="true">{icon}</span>{label}</button>)}
       </div>
     </nav>}
-    {panel && panel !== 'more' && <div className="reader-scrim" aria-hidden="true" onClick={dismiss} />}
-    {panel && <aside className={panel === 'more' ? 'reader-settings-page' : 'reader-sheet'}
+    {panel && !fullPage && <div className={`reader-scrim${panel === 'settings' ? ' reader-scrim-passive' : ''}`} aria-hidden="true" onClick={dismiss} />}
+    {panel && <aside className={fullPage ? 'reader-settings-page' : 'reader-sheet'}
       aria-label={{ toc: '目录', notes: '笔记', bookmarks: '书签', settings: '设置', more: '更多设置', search: '全文搜索' }[panel]}>
       <header className="sheet-heading">
-        {panel === 'more' ? <>
-          <button aria-label="返回阅读页" onClick={dismiss}>‹</button>
-          <nav aria-label="面包屑"><button onClick={dismiss}>阅读</button><span aria-hidden="true"> › </span><strong>更多设置</strong></nav>
+        {fullPage ? <>
+          <button className="reader-back" aria-label="返回阅读页" onClick={dismiss}><BackIcon /></button>
+          <nav aria-label="面包屑"><button onClick={dismiss}>阅读</button><span aria-hidden="true">›</span>
+            <strong>{panel === 'toc' ? '目录' : '更多设置'}</strong></nav>
         </> : <>
-          <h2>{{ toc: '目录', notes: '笔记', bookmarks: '书签', settings: '阅读设置', search: '全文搜索' }[panel]}</h2>
+          <h2>{{ notes: '笔记', bookmarks: '书签', settings: '阅读设置', search: '全文搜索' }[panel]}</h2>
           <button aria-label="关闭面板" onClick={dismiss}>×</button>
         </>}
       </header>
-      {panel === 'toc' && (chapters.length ? <ChapterList chapters={chapters} go={jump} /> : <p>目录暂不可用。</p>)}
+      {panel === 'toc' && <div className="contents-page">
+        {chapters.length ? <ChapterList chapters={chapters} go={jump} /> : <p>目录暂不可用。</p>}
+      </div>}
       {(panel === 'settings' || panel === 'more') && <ReaderSettings page={panel === 'more' ? 'more' : 'appearance'}
-        value={settings} change={saveSettings} volumeAvailable={volumeAvailable} more={() => setPanel('more')} />}
+        value={settings} change={saveSettings} volumeAvailable={volumeAvailable}
+        paragraphSpacingAvailable={book.format !== 'pdf' && book.format !== 'cbz'} more={() => setPanel('more')} />}
       {panel === 'search' && <ReaderSearch engine={engine.current} jump={jump} />}
       {(panel === 'notes' || panel === 'bookmarks') && <>
         {panel === 'notes' && <button disabled={!active || !position} onClick={() => position && setDraft({ text: '', position })}>写笔记</button>}
@@ -366,7 +387,7 @@ export function Reader({ book, data, settings, saveSettings, savePosition, saveM
       <textarea autoFocus aria-label="笔记内容" placeholder="记下这一页的想法…" value={draft.text} maxLength={4000} onChange={event => setDraft({ ...draft, text: event.target.value })} />
       <div><button type="button" onClick={() => setDraft(null)}>取消</button><button className="primary" type="submit" disabled={!draft.text.trim()}>保存</button></div>
     </form></div>}
-    {notice && <button className="toast" role="status" onClick={() => setNotice('')}>{notice} <span aria-hidden="true">×</span></button>}
+    {notice && <div className="toast" role="status">{notice}</div>}
     {dimmed && <div className="dimmed" aria-label="屏幕已休眠" onPointerDown={() => platform.activity?.()} />}
   </main>
 }

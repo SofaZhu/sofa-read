@@ -27,6 +27,7 @@ declare module '@ray-d-song/foliate-js/view.js' {
   }
 
   interface FoliateRenderer extends HTMLElement {
+    getContents?(): { index?: number; doc: Document | null }[]
     setStyles?(styles: string): void
   }
 

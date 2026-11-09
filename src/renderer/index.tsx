@@ -8,6 +8,7 @@ import { Reader } from './reader'
 import './styles.css'
 
 function App() {
+  const [libraryReady, setLibraryReady] = useState(false)
   const [books, setBooks] = useState<Book[]>([])
   const [active, setActive] = useState<Book | null>(null)
   const [data, setData] = useState(readData)
@@ -31,8 +32,14 @@ function App() {
     void platform.listBooks().then(setBooks).catch(error => {
       console.error('无法加载书架', error)
       setMessage('无法加载本地书架。')
-    })
+    }).finally(() => setLibraryReady(true))
   }, [])
+
+  useEffect(() => {
+    if (!message) return
+    const timeout = setTimeout(() => setMessage(''), 3000)
+    return () => clearTimeout(timeout)
+  }, [message])
 
   const updatePosition = useCallback((position: Position) => {
     if (!active) return
@@ -96,12 +103,12 @@ function App() {
 
   return <>
     <div hidden={!!active}>
-      <Shelf books={books} data={data} open={setActive} busy={busy} update={updateData}
-        importBooks={() => void importBooks()} remove={book => void remove(book)} />
+      {!libraryReady ? <p className="library-loading" role="status">正在读取书库…</p> : <Shelf books={books} data={data} open={setActive} busy={busy} update={updateData}
+        importBooks={() => void importBooks()} remove={book => void remove(book)} />}
     </div>
     {active && <Reader key={active.id} book={active} data={data.books[active.id] ?? {}} settings={settings}
       savePosition={updatePosition} saveMarks={updateMarks} saveSettings={saveSettings} relink={relink} back={() => setActive(null)} />}
-    {message && <button className="toast" role="alert" onClick={() => setMessage('')}>{message} <span aria-hidden="true">×</span></button>}
+    {message && <div className="toast" role="alert">{message}</div>}
   </>
 }
 

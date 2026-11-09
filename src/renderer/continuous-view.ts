@@ -245,6 +245,16 @@ export class ContinuousView extends HTMLElement {
     }
   }
 
+  getVisibleDocuments() {
+    const viewport = this.getBoundingClientRect()
+    return [...this.entries].flatMap(([index, { frame }]) => {
+      const bounds = frame.getBoundingClientRect()
+      const doc = frame.contentDocument
+      return doc?.body && bounds.bottom > viewport.top && bounds.top < viewport.bottom
+        ? [{ index, doc }] : []
+    })
+  }
+
   getContents() {
     return []
   }

@@ -24,6 +24,7 @@ export interface Settings {
   brightness: number
   size: number
   spacing: number
+  paragraphSpacing: number | null
   font: string
   mode: 'scroll' | 'page'
   volume: boolean
@@ -35,7 +36,7 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  theme: 'yellow', background: '', brightness: 100, size: 20, spacing: 1.8, font: 'serif',
+  theme: 'yellow', background: '', brightness: 100, size: 20, spacing: 1.8, paragraphSpacing: null, font: 'serif',
   mode: 'page', volume: false, tap: true, chapter: true, battery: true, clock: true, idle: 0
 }
 

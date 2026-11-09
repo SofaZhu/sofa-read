@@ -89,7 +89,7 @@ try {
     await page.getByText('再次滑动返回', { exact: false }).waitFor()
     await page.waitForTimeout(140)
     await swipeBack()
-    await page.getByRole('heading', { name: '我的书架' }).waitFor()
+    await page.getByRole('heading', { name: '阅读记录', exact: true }).waitFor()
     assert.deepEqual(errors, [])
     await page.close()
   }

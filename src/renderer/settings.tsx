@@ -8,10 +8,11 @@ interface SettingsProps {
   volumeAvailable: boolean
   page: 'appearance' | 'more'
   more?(): void
+  paragraphSpacingAvailable?: boolean
 }
 
 /** 阅读外观与操作设置。 */
-export function ReaderSettings({ value, change, volumeAvailable, page, more }: SettingsProps) {
+export function ReaderSettings({ value, change, volumeAvailable, page, more, paragraphSpacingAvailable }: SettingsProps) {
   const [localFonts, setLocalFonts] = useState<string[]>([])
   const [fontMessage, setFontMessage] = useState('')
   const fonts = [['serif', '系统衬线'], ['sans-serif', 'Sans-serif'], ['monospace', 'Monospace'], ['Lato', 'Lato'], ['阿里巴巴普惠体', '阿里巴巴普惠体'], ['阿里妈妈数黑体', '阿里妈妈数黑体']]
@@ -32,6 +33,11 @@ export function ReaderSettings({ value, change, volumeAvailable, page, more }: S
     <label>自定义背景色 <input type="color" value={value.background || THEMES[value.theme].bg} onChange={event => update('background', event.target.value)} /></label>
     <label>阅读区亮度 <output>{value.brightness}%</output><input type="range" min="25" max="100" value={value.brightness} onChange={event => update('brightness', +event.target.value)} /></label>
     <label>行间距 <output>{value.spacing.toFixed(1)}</output><input type="range" min="1" max="3" step="0.1" value={value.spacing} onChange={event => update('spacing', +event.target.value)} /></label>
+    {paragraphSpacingAvailable && <label>段落间距 <select value={value.paragraphSpacing ?? 'original'}
+      onChange={event => update('paragraphSpacing', event.target.value === 'original' ? null : Number(event.target.value))}>
+      <option value="original">原书</option><option value="0">无间距</option><option value="0.5">紧凑</option>
+      <option value="1">标准</option><option value="1.5">宽松</option>
+    </select></label>}
     <div className="font-size-setting"><span>文字大小</span><button aria-label="减小字号" disabled={value.size <= 12} onClick={() => update('size', value.size - 1)}>A−</button>
       <output>{value.size}px</output><button aria-label="增大字号" disabled={value.size >= 48} onClick={() => update('size', value.size + 1)}>A+</button></div>
     <label>字体 <select value={value.font} onChange={event => update('font', event.target.value)}>

@@ -28,6 +28,7 @@ button.selected, button[aria-pressed="true"] { background: #e5e9dc; color: #2c48
 h1, h2, h3, p { margin: 0; }
 h1 { font-family: Georgia, 'Songti SC', serif; font-size: clamp(32px, 4vw, 52px); font-weight: 600; }
 p { line-height: 1.55; }
+.library-loading { padding: 24px; color: var(--muted); }
 .library-header {
   display: flex; align-items: center; justify-content: space-between;
   min-height: 68px; padding: 8px 28px 0; gap: 16px; background: var(--surface);
@@ -90,11 +91,13 @@ button.open-card { display: block; width: 100%; border: 0; background: transpare
   grid-template-columns: auto minmax(0, 1fr) auto; align-items: center;
   gap: 12px; border-bottom: 1px solid var(--edge);
 }
-.reader-toolbar strong { text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .9rem; font-weight: 550; }
+.reader-toolbar strong { color: var(--muted); text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .9rem; font-weight: 550; }
 .reader-toolbar > div { display: flex; gap: 3px; }
 .reader-toolbar button, .reader-actions button, .sheet-heading button { border: 0; background: transparent; }
 .reader-toolbar button { min-width: 42px; min-height: 44px; padding: 0; font-size: 1.55rem; line-height: 1; }
-.reader-toolbar svg { width: 22px; height: 22px; vertical-align: middle; }
+.reader-toolbar svg, .reader-back svg { display: block; width: 22px; height: 22px; }
+.reader-toolbar > div button, .reader-back { display: grid; place-items: center; color: var(--muted); }
+.reader-toolbar button[aria-pressed="true"] { color: var(--reader-accent); }
 .reader-bottom { bottom: 0; padding: 10px 16px calc(8px + env(safe-area-inset-bottom)); border-top: 1px solid var(--edge); }
 .reader-progress { max-width: 720px; margin: auto; display: flex; align-items: center; gap: 10px; }
 .reader-progress input { flex: 1; min-width: 0; }
@@ -118,6 +121,7 @@ button.open-card { display: block; width: 100%; border: 0; background: transpare
 .dark-pdf { color-scheme: dark; }
 .dark-pdf .pdfViewer { filter: invert(.88) hue-rotate(180deg); }
 .reading-message { position: absolute; inset: 0; display: grid; justify-items: center; align-content: center; gap: 12px; padding: 30px; text-align: center; background: var(--paper); }
+.reader-scrim-passive { pointer-events: none; }
 .reader-scrim { position: absolute; z-index: 3; inset: 0; background: #181b151c; }
 .reader-sheet, .reader-settings-page {
   position: absolute; z-index: 4; inset-inline: 0; overflow: auto;
@@ -129,12 +133,22 @@ button.open-card { display: block; width: 100%; border: 0; background: transpare
 .sheet-heading h2 { font-size: 1.05rem; }
 .sheet-heading button { min-height: 40px; }
 .reader-settings-page .sheet-heading { justify-content: flex-start; padding: env(safe-area-inset-top) 14px 0; min-height: calc(56px + env(safe-area-inset-top)); background: var(--surface); border-bottom: 1px solid var(--edge); }
-.reader-settings-page .sheet-heading > button { font-size: 1.7rem; }
-.reader-settings-page .sheet-heading nav button { color: var(--muted); padding-inline: 4px; }
+.reader-settings-page .sheet-heading > button { width: 42px; padding: 0; }
+.reader-settings-page .sheet-heading nav { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: .9rem; }
+.reader-settings-page .sheet-heading nav button { color: inherit; padding-inline: 0; }
+.reader-settings-page .sheet-heading nav strong { font-weight: 550; }
 .reader-search { display: flex; gap: 8px; margin: 12px 0; }
 .reader-search input { flex: 1; min-width: 0; }
-.chapters { list-style: none; padding: 0 0 0 10px; }
-.chapters button { display: block; width: 100%; text-align: left; border: 0; }
+.contents-page { max-width: 760px; margin-inline: auto; padding: 14px clamp(14px, 4vw, 32px); }
+.chapters, .search-results { list-style: none; margin: 0; padding: 0; }
+.chapters { display: grid; gap: 8px; }
+.chapters .chapters { margin: 8px 0 0 14px; padding-left: 8px; border-left: 1px solid var(--edge); }
+.chapters button, .search-results button { display: block; width: 100%; min-height: 44px; text-align: left; overflow-wrap: anywhere; }
+.chapters button:hover, .search-results button:hover { background: #eeede4; }
+.search-status { color: var(--muted); margin-bottom: 8px; font-size: .85rem; }
+.search-results li { padding: 6px 0; border-bottom: 1px solid var(--edge); }
+.search-results button { background: #f5f4ed; border: 0; line-height: 1.5; }
+.search-tail { height: 1px; }
 .settings-fields { display: grid; }
 .settings-fields label, .font-size-setting {
   display: flex; align-items: center; gap: 8px; min-height: 46px; border-bottom: 1px solid var(--edge);
@@ -164,7 +178,11 @@ button.open-card { display: block; width: 100%; border: 0; background: transpare
 .note-modal { width: min(510px, 90vw); padding: 22px; background: var(--surface); border-radius: 12px; }
 .note-modal textarea { display: block; min-height: 160px; width: 100%; margin: 14px 0; resize: vertical; }
 .note-modal > div { display: flex; justify-content: end; gap: 8px; }
-button.toast { position: fixed; bottom: 52px; left: 50%; transform: translateX(-50%); z-index: 8; box-shadow: 0 4px 20px #0003; }
+.toast {
+  position: fixed; bottom: calc(52px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%);
+  z-index: 8; max-width: calc(100vw - 32px); padding: 8px 14px; border-radius: 8px;
+  background: #33372e; color: #fff; box-shadow: 0 4px 20px #0003; pointer-events: none;
+}
 .dimmed { position: fixed; inset: 0; z-index: 9; background: #000; }
 
 @media (max-width: 640px) {

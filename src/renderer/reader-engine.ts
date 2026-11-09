@@ -7,6 +7,7 @@ export interface ReaderEvents {
   activity?(): void
   key(event: KeyboardEvent): void
   tap(ratio: number): void
+  scroll(): void
   back(): void
 }
 
@@ -18,6 +19,7 @@ export interface SearchMatch {
 export interface ReaderEngine {
   open(file: File, start: Position | null): Promise<void>
   go(target: Position['target']): Promise<void>
+  isVisible?(target: Position['target']): boolean
   seek(fraction: number): Promise<void>
   search(query: string, signal: AbortSignal): AsyncGenerator<SearchMatch>
   step(direction: number): Promise<void>
