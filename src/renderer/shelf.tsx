@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import logo from './assets/sofa-read.svg?url'
 import { getCover, type ReadingData } from './reading-data'
 import type { Book } from './model'
 
@@ -47,7 +48,7 @@ export function Shelf({ books, data, open, importBooks, busy, remove, update }: 
 
   return <main className="library">
     <header className="library-header">
-      <div className="brand"><span className="brand-mark" aria-hidden="true">▤</span><span>Sofa Read</span></div>
+      <div className="brand"><img className="brand-mark" src={logo} alt="" /><span>Sofa Read</span></div>
       <nav aria-label="书库">
         <button className={tab === 'shelf' ? 'selected' : ''} onClick={() => setTab('shelf')}>书架</button>
         <button className={tab === 'history' ? 'selected' : ''} onClick={() => setTab('history')}>阅读记录</button>

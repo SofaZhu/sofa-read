@@ -22,6 +22,13 @@
   "build": {
     "appId": "com.sofazhu.sofa-read",
     "productName": "Sofa Read",
+    "icon": "build/icon.png",
+    "mac": {
+      "icon": "build/icon.icns"
+    },
+    "win": {
+      "icon": "build/icon.ico"
+    },
     "files": [
       "out/**/*"
     ],
