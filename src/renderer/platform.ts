@@ -20,8 +20,9 @@ interface SofaNative {
   chunk(options: { token: string }): Promise<{ data: string; done: boolean }>
   close(options: { token: string }): Promise<void>
   release(options: { reference: string }): Promise<void>
-  reading(options: { awake: boolean; volume: boolean }): Promise<{ volume: boolean }>
+  reading(options: { active: boolean; awake: boolean; volume: boolean }): Promise<{ volume: boolean }>
   fonts(): Promise<{ families: string[] }>
+  addListener(name: 'back', callback: (event: { method: 'click' | 'swipe' }) => void): Promise<PluginListenerHandle>
   addListener(name: 'turn', callback: (event: { step: number }) => void): Promise<PluginListenerHandle>
 }
 
@@ -54,7 +55,7 @@ function mobilePlatform(): Desktop {
 
   async function apply() {
     const awake = config.active && !dimmed && !document.hidden
-    return (await native.reading({ awake, volume: awake && config.volume })).volume
+    return (await native.reading({ active: config.active, awake, volume: awake && config.volume })).volume
   }
 
   function reportDim(value: boolean) {
@@ -120,15 +121,33 @@ function mobilePlatform(): Desktop {
       let token: string | undefined
       try {
         if (signal?.aborted) return null
+        if (Capacitor.getPlatform() === 'android' && book.document.reference.startsWith('content://')) {
+          // 系统 WebView 可以直接读取 SAF 授权的原文件，避免逐块跨桥传输。
+          const url = Capacitor.convertFileSrc(book.document.reference)
+          if (url !== book.document.reference) {
+            try {
+              const response = await fetch(url, { signal })
+              if (response.ok) {
+                const blob = await response.blob()
+                if (blob.size) return blob
+              }
+            } catch (error) {
+              if (signal?.aborted) return null
+              console.debug('直接读取不可用，使用文件提供方读取', error)
+            }
+          }
+        }
         token = (await native.open({ reference: book.document.reference })).token
         const chunks: Uint8Array<ArrayBuffer>[] = []
         while (!signal?.aborted) {
           const { data, done } = await native.chunk({ token })
           if (data) {
             const raw = atob(data)
-            chunks.push(Uint8Array.from(raw, character => character.charCodeAt(0)))
+            const decoded = new Uint8Array(raw.length)
+            for (let index = 0; index < raw.length; index++) decoded[index] = raw.charCodeAt(index)
+            chunks.push(decoded)
           }
-          if (done) return new Uint8Array(await new Blob(chunks).arrayBuffer())
+          if (done) return new Blob(chunks)
         }
         return null
       } catch (error) {
@@ -174,6 +193,13 @@ function mobilePlatform(): Desktop {
         console.warn('无法监听移动端音量键', error)
       })
       return () => { void handle.then(value => value?.remove()).catch(error => console.debug('无法清理音量键监听', error)) }
+    },
+    onBack(callback) {
+      if (Capacitor.getPlatform() !== 'android') return () => {}
+      const handle = native.addListener('back', event => callback(event.method)).catch(error => {
+        console.warn('无法监听系统返回', error)
+      })
+      return () => { void handle.then(value => value?.remove()).catch(error => console.debug('无法清理系统返回监听', error)) }
     },
     onDim(callback) {
       dimCallback = callback

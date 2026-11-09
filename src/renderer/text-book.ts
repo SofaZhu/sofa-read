@@ -40,17 +40,27 @@ export function makeTextBook(text: string) {
   const urls = new Map<number, string>()
   const escape = (line: string) => line.replace(/[&<>]/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[character]!)
   return {
-    sections: sections.map(({ lines }, index) => ({
-      id: index,
-      size: new TextEncoder().encode(lines.join('\n')).length,
-      load() {
-        if (!urls.has(index)) {
-          const body = lines.map(line => line.trim() ? `<p>${escape(line)}</p>` : '<p><br></p>').join('')
-          urls.set(index, URL.createObjectURL(new Blob([`<!doctype html><html lang="zh-CN"><meta charset="utf-8"><body>${body}</body></html>`], { type: 'text/html' })))
-        }
-        return urls.get(index)!
+    sections: sections.map(({ lines }, index) => {
+      const html = () => {
+        const body = lines.map(line => line.trim() ? `<p>${escape(line)}</p>` : '<p><br></p>').join('')
+        return `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><body>${body}</body></html>`
       }
-    })),
+      return {
+        id: index,
+        size: new TextEncoder().encode(lines.join('\n')).length,
+        createDocument: () => new DOMParser().parseFromString(html(), 'text/html'),
+        load() {
+          if (!urls.has(index)) urls.set(index, URL.createObjectURL(new Blob([html()], { type: 'text/html' })))
+          return urls.get(index)!
+        },
+        unload() {
+          const url = urls.get(index)
+          if (!url) return
+          URL.revokeObjectURL(url)
+          urls.delete(index)
+        }
+      }
+    }),
     toc: sections.map(({ label }, index) => ({ label, href: String(index) })),
     resolveHref: (href: string) => ({ index: Number(href) }),
     splitTOCHref: (href: string) => [Number(href)],

@@ -1,8 +1,16 @@
 declare module '@ray-d-song/foliate-js/view.js' {
+  export interface FoliateTarget {
+    index: number
+    anchor?: number | ((doc: Document) => Range | Element | null | undefined)
+  }
+
   interface FoliateSection {
     id: string | number
     size?: number
     linear?: string
+    load(): string | Promise<string>
+    unload?(): void
+    createDocument?(): Document | Promise<Document>
   }
 
   interface FoliateChapter {
@@ -24,11 +32,16 @@ declare module '@ray-d-song/foliate-js/view.js' {
 
   export class View extends HTMLElement {
     book: FoliateBook
+    sofaCreateRenderer?: () => HTMLElement
     renderer?: FoliateRenderer
     isFixedLayout: boolean
     open(book: FoliateBook): Promise<void>
     init(options: { lastLocation?: string | number; showTextStart: boolean }): Promise<void>
     goTo(target: string | number): Promise<void>
+    getCFI(index: number, range?: Range): string
+    getTOCItemOf?(target: string): Promise<FoliateChapter | undefined>
+    resolveNavigation(target: string | number | { fraction: number }): FoliateTarget | undefined
+    goToFraction(fraction: number): Promise<void>
     prev(): Promise<void>
     next(): Promise<void>
     close(): void

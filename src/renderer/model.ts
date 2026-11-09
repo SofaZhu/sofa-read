@@ -51,6 +51,7 @@ export interface Position {
   page: number
   total: number
   estimated?: boolean
+  fraction?: number
 }
 
 export interface Mark {

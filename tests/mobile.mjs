@@ -27,6 +27,7 @@ try {
     await page.addInitScript(system => {
       window.CapacitorCustomPlatform = { name: system }
       const methods = list => list.map(name => ({ name, rtype: 'promise' }))
+      const callbacks = new Map()
       const document = { name: '手机测试.txt', bytes: 50, reference: '原文件引用', identity: '原文件标识' }
       window.Capacitor = {
         PluginHeaders: [
@@ -44,23 +45,55 @@ try {
           }
           return cases[method]
         },
-        nativeCallback() { return '测试监听' }
+        nativeCallback(_plugin, method, options, callback) {
+          if (method === 'addListener') callbacks.set(options.eventName, callback)
+          if (method === 'removeListener') callbacks.delete(options.eventName)
+          return '测试监听'
+        }
       }
+      window.testNativeBack = () => callbacks.get('back')?.({ method: 'swipe' })
     }, system)
     await page.goto(`http://127.0.0.1:${server.address().port}/index.html`)
     await page.getByRole('button', { name: '＋ 导入书籍' }).tap()
     await page.locator('.open-card').tap()
     await page.locator('.chapter-line').getByText('第一章 出发').waitFor()
     await page.getByText('电量 65%').waitFor()
+    await page.touchscreen.tap(195, 420)
     await page.getByRole('button', { name: '设置', exact: true }).tap()
+    await page.getByRole('button', { name: '更多设置' }).tap()
     assert.equal(await page.getByLabel('音量键翻页').count(), system === 'ios' ? 0 : 1)
+    await page.getByRole('button', { name: '阅读', exact: true }).tap()
+    await page.touchscreen.tap(195, 420)
+    await page.getByRole('button', { name: '设置', exact: true }).tap()
     await page.getByRole('button', { name: '载入本机字体' }).tap()
     await page.getByText('已载入本机字体').waitFor()
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true)
+    if (process.env.SOFA_TEST_MOBILE_SCREENSHOT && system === 'ios') {
+      await page.screenshot({ path: process.env.SOFA_TEST_MOBILE_SCREENSHOT })
+    }
+    await page.getByRole('button', { name: '关闭面板' }).tap()
+    async function swipeBack() {
+      if (system === 'android') return page.evaluate(() => window.testNativeBack())
+      const frame = page.frames().find(frame => frame.url().startsWith('blob:'))
+      assert.ok(frame)
+      await frame.evaluate(() => {
+        setTimeout(() => {
+          const target = document.body
+          const touch = clientX => new Touch({ identifier: 1, target, clientX, clientY: 150 })
+          target.dispatchEvent(new TouchEvent('touchstart', { bubbles: true, touches: [touch(5)] }))
+          target.dispatchEvent(new TouchEvent('touchend', { bubbles: true, changedTouches: [touch(105)] }))
+        }, 20)
+      })
+    }
+    await swipeBack()
+    await page.getByText('再次滑动返回', { exact: false }).waitFor()
+    await page.waitForTimeout(140)
+    await swipeBack()
+    await page.getByRole('heading', { name: '我的书架' }).waitFor()
     assert.deepEqual(errors, [])
     await page.close()
   }
-  console.log('移动界面冒烟通过：触屏导入、手机宽度、电量、本机字体和平台设置可见性。')
+  console.log('移动界面冒烟通过：触屏导入、手机宽度、电量、本机字体、平台设置可见性和二次滑动返回。')
 } finally {
   await browser?.close()
   server.close()

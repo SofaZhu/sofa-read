@@ -31,7 +31,7 @@ import org.xmlpull.v1.XmlPullParser;
 
 @CapacitorPlugin(name = "SofaNative")
 public class SofaNative extends Plugin {
-  private static final int CHUNK = 512 * 1024;
+  private static final int CHUNK = 1024 * 1024;
   private static final int READ = Intent.FLAG_GRANT_READ_URI_PERMISSION;
   private final Map<String, InputStream> streams = new ConcurrentHashMap<>();
   private boolean volume;
@@ -145,14 +145,20 @@ public class SofaNative extends Plugin {
 
   @PluginMethod
   public void reading(PluginCall call) {
+    boolean active = Boolean.TRUE.equals(call.getBoolean("active"));
     boolean awake = Boolean.TRUE.equals(call.getBoolean("awake"));
     boolean keys = Boolean.TRUE.equals(call.getBoolean("volume"));
     getActivity().runOnUiThread(() -> {
       volume = awake && keys;
+      if (getActivity() instanceof MainActivity) ((MainActivity) getActivity()).setReaderBackEnabled(active);
       if (awake) getActivity().getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
       else getActivity().getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
       call.resolve(new JSObject().put("volume", true));
     });
+  }
+
+  void readerBack(String method) {
+    notifyListeners("back", new JSObject().put("method", method));
   }
 
   boolean handleVolume(KeyEvent event) {

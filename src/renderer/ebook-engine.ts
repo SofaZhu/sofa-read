@@ -4,10 +4,13 @@ import shuhei from '@fontpkg/alimama-shu-hei-ti/AlimamaShuHeiTi-Bold.woff2?url'
 import puhuiti from 'alibabapuhuiti-3-65-medium/AlibabaPuHuiTi-3-65-Medium.woff2?url'
 import { THEMES, type Chapter, type Settings } from './model'
 import type { ReaderEngine, ReaderEvents } from './reader-engine'
+import { bindReadingGestures } from './reading-gestures'
+import { ContinuousView } from './continuous-view'
 import { decodeText, makeTextBook } from './text-book'
 
 interface Relocation {
   cfi: string
+  fraction?: number
   section?: { current: number; total: number }
   location?: { current: number; total: number }
   tocItem?: { label?: string }
@@ -15,6 +18,7 @@ interface Relocation {
 
 export function ebookEngine(host: HTMLElement, events: ReaderEvents, initial: Settings): ReaderEngine {
   const view = new View()
+  if (initial.mode === 'scroll') view.sofaCreateRenderer = () => new ContinuousView()
   const lifetime = new AbortController()
   const { signal } = lifetime
   let settings = initial
@@ -22,6 +26,7 @@ export function ebookEngine(host: HTMLElement, events: ReaderEvents, initial: Se
   let initialized = false
   let opening = true
   let pending = Promise.resolve()
+  let cover: Promise<void> | undefined
 
   function configure(next: Settings) {
     settings = next
@@ -36,7 +41,7 @@ export function ebookEngine(host: HTMLElement, events: ReaderEvents, initial: Se
       @font-face { font-family: Lato; src: url(${JSON.stringify(new URL(lato, location.href).href)}); }
       @font-face { font-family: "阿里巴巴普惠体"; src: url(${JSON.stringify(new URL(puhuiti, location.href).href)}); }
       @font-face { font-family: "阿里妈妈数黑体"; src: url(${JSON.stringify(new URL(shuhei, location.href).href)}); }
-      html { background: ${next.background || theme.bg} !important; color-scheme: ${next.theme === 'dark' ? 'dark' : 'light'}; }
+      html { touch-action: manipulation; background: ${next.background || theme.bg} !important; color-scheme: ${next.theme === 'dark' ? 'dark' : 'light'}; }
       body { background: transparent !important; }
       body, p, div, span, li, blockquote, h1, h2, h3, h4, h5, h6 {
         color: ${theme.fg} !important; font-family: ${font}, serif !important;
@@ -47,6 +52,7 @@ export function ebookEngine(host: HTMLElement, events: ReaderEvents, initial: Se
     `)
   }
 
+  bindReadingGestures(host, events, signal)
   view.addEventListener('external-link', event => event.preventDefault(), { signal })
   view.addEventListener('load', event => {
     const { doc } = (event as CustomEvent<{ doc: Document }>).detail
@@ -54,14 +60,7 @@ export function ebookEngine(host: HTMLElement, events: ReaderEvents, initial: Se
       events.activity?.()
       events.key(event)
     }, { signal })
-    if (events.activity) {
-      doc.addEventListener('pointerdown', events.activity, { signal, passive: true })
-      doc.addEventListener('scroll', events.activity, { signal, passive: true })
-    }
-    doc.addEventListener('click', event => {
-      if ((event.target as Element).closest('a, button, input, label') || doc.getSelection()?.toString()) return
-      events.tap(event, doc.defaultView?.innerWidth ?? host.clientWidth)
-    }, { signal })
+    bindReadingGestures(doc, events, signal, host)
   }, { signal })
   view.addEventListener('relocate', event => {
     const detail = (event as CustomEvent<Relocation>).detail
@@ -72,16 +71,19 @@ export function ebookEngine(host: HTMLElement, events: ReaderEvents, initial: Se
     const page = Math.min(total, (estimated ? location?.current ?? index : index) + 1)
     events.position({
       target: detail.cfi, page, total, estimated,
+      fraction: typeof detail.fraction === 'number' && Number.isFinite(detail.fraction)
+        ? Math.max(0, Math.min(1, detail.fraction)) : undefined,
       chapter: detail.tocItem?.label?.trim() || `第 ${index + 1} 节`
     })
   }, { signal })
 
   function dispose() {
     try {
-      if (initialized) view.close()
+      if (initialized || view.renderer instanceof ContinuousView) view.close()
     } finally {
-      book?.destroy?.()
       view.remove()
+      if (cover) void cover.finally(() => book?.destroy?.()).catch(error => console.debug('无法清理书籍资源', error))
+      else book?.destroy?.()
     }
   }
 
@@ -92,6 +94,25 @@ export function ebookEngine(host: HTMLElement, events: ReaderEvents, initial: Se
     })
     pending = operation.catch(() => {})
     return operation
+  }
+
+  async function loadCover(source: View['book']) {
+    try {
+      const blob = await source.getCover?.()
+      if (!blob || signal.aborted) return
+      const bitmap = await createImageBitmap(blob, { resizeWidth: 160 })
+      try {
+        const canvas = document.createElement('canvas')
+        canvas.width = bitmap.width
+        canvas.height = Math.min(bitmap.height, 400)
+        canvas.getContext('2d')?.drawImage(bitmap, 0, 0)
+        if (!signal.aborted) events.cover?.(canvas.toDataURL('image/jpeg', 0.75))
+      } finally {
+        bitmap.close()
+      }
+    } catch (error) {
+      console.debug('无法提取电子书封面', error)
+    }
   }
 
   return {
@@ -108,7 +129,15 @@ export function ebookEngine(host: HTMLElement, events: ReaderEvents, initial: Se
         await view.open(book)
         if (signal.aborted) return
         configure(settings)
-        await view.init({ lastLocation: start?.target, showTextStart: true })
+        try {
+          await view.init({ lastLocation: start?.target, showTextStart: true })
+        } catch (error) {
+          if (signal.aborted || start?.target === undefined) throw error
+          // 文件重新定位或版本更新后，旧 CFI 的正文锚点可能已经失效。
+          const index = view.resolveNavigation(start.target)?.index
+          const fallback = typeof index === 'number' && index >= 0 && index < book.sections.length ? index : undefined
+          await view.init({ lastLocation: fallback, showTextStart: true })
+        }
         initialized = true
 
         function toChapters(items: NonNullable<View['book']['toc']>): Chapter[] {
@@ -123,31 +152,45 @@ export function ebookEngine(host: HTMLElement, events: ReaderEvents, initial: Se
           events.chapters(book.toc?.length ? toChapters(book.toc) : book.sections.flatMap((section, index) =>
             section.linear === 'no' ? [] : [{ label: `第 ${index + 1} 节`, target: index }]))
         }
-        if (!signal.aborted && events.cover && book.getCover) {
-          try {
-            const blob = await book.getCover()
-            if (blob && !signal.aborted) {
-              const bitmap = await createImageBitmap(blob, { resizeWidth: 160 })
-              try {
-                const canvas = document.createElement('canvas')
-                canvas.width = bitmap.width
-                canvas.height = Math.min(bitmap.height, 400)
-                canvas.getContext('2d')?.drawImage(bitmap, 0, 0)
-                if (!signal.aborted) events.cover(canvas.toDataURL('image/jpeg', 0.75))
-              } finally {
-                bitmap.close()
-              }
-            }
-          } catch (error) {
-            console.debug('无法提取电子书封面', error)
-          }
-        }
+        if (!signal.aborted && events.cover && book.getCover) cover = loadCover(book)
       } finally {
         opening = false
         if (signal.aborted) dispose()
       }
     },
     go: target => navigate(() => view.goTo(target)),
+    seek: fraction => navigate(async () => {
+      if (view.resolveNavigation({ fraction })) await view.goToFraction(fraction)
+      else if (book) await view.goTo(Math.round(fraction * (book.sections.length - 1)))
+    }),
+    async *search(query, searchSignal) {
+      if (!book) return
+      const needle = query.toLocaleLowerCase()
+      for (const [index, section] of book.sections.entries()) {
+        if (signal.aborted || searchSignal.aborted) return
+        const doc = await section.createDocument?.()
+        if (!doc?.body) continue
+        const nodes: { node: Text; start: number }[] = []
+        const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT)
+        let text = ''
+        for (let next = walker.nextNode(); next; next = walker.nextNode()) {
+          if (next.parentElement?.closest('script, style')) continue
+          nodes.push({ node: next as Text, start: text.length })
+          text += next.nodeValue ?? ''
+        }
+        const haystack = text.toLocaleLowerCase()
+        let nodeIndex = 0
+        for (let match = haystack.indexOf(needle); match >= 0; match = haystack.indexOf(needle, match + needle.length)) {
+          if (searchSignal.aborted || signal.aborted) return
+          while (nodeIndex + 1 < nodes.length && nodes[nodeIndex + 1].start <= match) nodeIndex++
+          const { node, start } = nodes[nodeIndex]
+          const range = doc.createRange()
+          range.setStart(node, Math.min(node.length, match - start))
+          range.collapse(true)
+          yield { target: view.getCFI(index, range), excerpt: text.slice(Math.max(0, match - 40), match + needle.length + 55).trim() }
+        }
+      }
+    },
     step: direction => navigate(() => direction < 0 ? view.prev() : view.next()),
     configure,
     close() {

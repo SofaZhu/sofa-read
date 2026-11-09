@@ -38,7 +38,7 @@ class SofaNative: CAPPlugin, CAPBridgedPlugin, UIDocumentPickerDelegate {
   }
 
   private let queue = DispatchQueue(label: "com.sofazhu.sofa-read.documents", qos: .userInitiated)
-  private let chunkSize = 512 * 1024
+  private let chunkSize = 1024 * 1024
   private var readers: [String: Reader] = [:]
   private var pickerCall: CAPPluginCall?
 
