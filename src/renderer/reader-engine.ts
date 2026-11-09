@@ -1,3 +1,4 @@
+import type { searchExcerpt } from './search-text'
 import type { Chapter, Position, Settings } from './model'
 
 export interface ReaderEvents {
@@ -13,7 +14,7 @@ export interface ReaderEvents {
 
 export interface SearchMatch {
   target: Position['target']
-  excerpt: string
+  excerpt: ReturnType<typeof searchExcerpt>
 }
 
 export interface ReaderEngine {

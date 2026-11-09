@@ -212,7 +212,7 @@ export function ebookEngine(host: HTMLElement, events: ReaderEvents, initial: Se
           const range = doc.createRange()
           range.setStart(node, Math.min(node.length, match - start))
           range.collapse(true)
-          yield { target: view.getCFI(index, range), excerpt: searchExcerpt(text, match) }
+          yield { target: view.getCFI(index, range), excerpt: searchExcerpt(text, match, needle.length) }
         }
       }
     },

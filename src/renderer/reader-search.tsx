@@ -7,6 +7,7 @@ const BATCH_SIZE = 20
 /** 显示书内全文匹配，离开搜索时停止当前检索。 */
 export function ReaderSearch({ engine, jump }: { engine: ReaderEngine | null; jump(target: SearchMatch['target']): void }) {
   const task = useRef<AbortController>(null)
+  const scrollArea = useRef<HTMLDivElement>(null)
   const tail = useRef<HTMLDivElement>(null)
   const composing = useRef(false)
   const [query, setQuery] = useState('')
@@ -17,14 +18,15 @@ export function ReaderSearch({ engine, jump }: { engine: ReaderEngine | null; ju
 
   useEffect(() => {
     const sentinel = tail.current
-    if (!sentinel || visible >= results.length) return
+    const root = scrollArea.current
+    if (!sentinel || !root || visible >= results.length) return
     const search = task.current
     let active = true
     const observer = new IntersectionObserver(entries => {
       if (!active || search !== task.current || !entries.some(entry => entry.isIntersecting)) return
       observer.disconnect()
       setVisible(count => count + BATCH_SIZE)
-    }, { root: sentinel.closest('.reader-sheet'), rootMargin: '0px 0px 72px' })
+    }, { root, rootMargin: '0px 0px 72px' })
     observer.observe(sentinel)
     return () => {
       active = false
@@ -41,6 +43,7 @@ export function ReaderSearch({ engine, jump }: { engine: ReaderEngine | null; ju
     task.current = controller
     let batch: SearchMatch[] = []
     let count = 0
+    scrollArea.current?.scrollTo(0, 0)
     setResults([])
     setVisible(BATCH_SIZE)
     setStatus('正在搜索…')
@@ -79,17 +82,27 @@ export function ReaderSearch({ engine, jump }: { engine: ReaderEngine | null; ju
   }
 
   return <>
-    <form className="reader-search" onSubmit={event => void search(event)}>
-      <input autoFocus aria-label="搜索关键词" type="search" value={query}
-        placeholder={`最多 ${SEARCH_QUERY_LIMIT} 个字符`}
-        onCompositionStart={() => { composing.current = true }}
-        onCompositionEnd={event => { composing.current = false; setQuery(limitSearchQuery(event.currentTarget.value)) }}
-        onChange={event => setQuery(composing.current ? event.target.value : limitSearchQuery(event.target.value))} />
-      <button className="primary" disabled={!query.trim()}>搜索</button>
-    </form>
-    {status && <p className="search-status" role="status">{status}</p>}
-    <ul className="search-results">{results.slice(0, visible).map(({ target, excerpt }, index) =>
-      <li key={index}><button onClick={() => jump(target)}>{excerpt}</button></li>)}</ul>
-    {visible < results.length && <div className="search-tail" ref={tail} aria-hidden="true" />}
+    <div className="reader-search-controls">
+      <div className="reader-search-content">
+        <form className="reader-search" onSubmit={event => void search(event)}>
+          <input autoFocus aria-label="搜索关键词" type="search" value={query}
+            placeholder={`最多 ${SEARCH_QUERY_LIMIT} 个字符`}
+            onCompositionStart={() => { composing.current = true }}
+            onCompositionEnd={event => { composing.current = false; setQuery(limitSearchQuery(event.currentTarget.value)) }}
+            onChange={event => setQuery(composing.current ? event.target.value : limitSearchQuery(event.target.value))} />
+          <button className="primary" disabled={!query.trim()}>搜索</button>
+        </form>
+        <p className="search-status" role="status">{status}</p>
+      </div>
+    </div>
+    <div ref={scrollArea} className="reader-page-scroll reader-search-scroll">
+      <div className="reader-search-content">
+        <ul className="search-results">{results.slice(0, visible).map(({ target, excerpt }, index) =>
+          <li key={index}><button onClick={() => jump(target)}>
+            {excerpt.before}<mark>{excerpt.match}</mark>{excerpt.after}
+          </button></li>)}</ul>
+        {visible < results.length && <div className="search-tail" ref={tail} aria-hidden="true" />}
+      </div>
+    </div>
   </>
 }

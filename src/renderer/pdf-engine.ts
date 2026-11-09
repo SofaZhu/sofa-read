@@ -133,7 +133,7 @@ export function pdfEngine(host: HTMLElement, events: ReaderEvents, initial: Sett
         const haystack = text.toLocaleLowerCase()
         for (let match = haystack.indexOf(needle); match >= 0; match = haystack.indexOf(needle, match + needle.length)) {
           if (signal.aborted || lifetime.signal.aborted) return
-          yield { target, excerpt: searchExcerpt(text, match) }
+          yield { target, excerpt: searchExcerpt(text, match, needle.length) }
         }
       }
     },

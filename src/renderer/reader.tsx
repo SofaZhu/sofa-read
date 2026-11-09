@@ -104,7 +104,7 @@ export function Reader({ book, data, settings, saveSettings, savePosition, saveM
   const marks = data.marks ?? []
   const theme = THEMES[settings.theme]
   const ebookMode = book.format === 'pdf' ? null : settings.mode
-  const fullPage = panel === 'more' || panel === 'toc'
+  const fullPage = panel === 'more' || panel === 'toc' || panel === 'search'
   const bookmark = position && (menu || panel === 'bookmarks') && marks.find(mark => mark.kind === 'bookmark' &&
     (mark.position.target === position.target || engine.current?.isVisible?.(mark.position.target)))
   const dismiss = () => { setPanel(null); setMenu(false) }
@@ -357,18 +357,21 @@ export function Reader({ book, data, settings, saveSettings, savePosition, saveM
         {fullPage ? <>
           <button className="reader-back" aria-label="返回阅读页" onClick={dismiss}><BackIcon /></button>
           <nav aria-label="面包屑"><button onClick={dismiss}>阅读</button><span aria-hidden="true">›</span>
-            <strong>{panel === 'toc' ? '目录' : '更多设置'}</strong></nav>
+            <strong>{{ toc: '目录', more: '更多设置', search: '全文搜索' }[panel]}</strong></nav>
         </> : <>
-          <h2>{{ notes: '笔记', bookmarks: '书签', settings: '阅读设置', search: '全文搜索' }[panel]}</h2>
+          <h2>{{ notes: '笔记', bookmarks: '书签', settings: '阅读设置' }[panel]}</h2>
           <button aria-label="关闭面板" onClick={dismiss}>×</button>
         </>}
       </header>
-      {panel === 'toc' && <div className="contents-page">
-        {chapters.length ? <ChapterList chapters={chapters} go={jump} /> : <p>目录暂不可用。</p>}
+      {panel === 'toc' && <div className="reader-page-scroll contents-scroll">
+        <div className="contents-page">{chapters.length ? <ChapterList chapters={chapters} go={jump} /> : <p>目录暂不可用。</p>}</div>
       </div>}
-      {(panel === 'settings' || panel === 'more') && <ReaderSettings page={panel === 'more' ? 'more' : 'appearance'}
-        value={settings} change={saveSettings} volumeAvailable={volumeAvailable}
-        paragraphSpacingAvailable={book.format !== 'pdf' && book.format !== 'cbz'} more={() => setPanel('more')} />}
+      {panel === 'more' && <div className="reader-page-scroll">
+        <ReaderSettings page="more" value={settings} change={saveSettings} volumeAvailable={volumeAvailable} />
+      </div>}
+      {panel === 'settings' && <ReaderSettings page="appearance" value={settings} change={saveSettings}
+        volumeAvailable={volumeAvailable} paragraphSpacingAvailable={book.format !== 'pdf' && book.format !== 'cbz'}
+        more={() => setPanel('more')} />}
       {panel === 'search' && <ReaderSearch engine={engine.current} jump={jump} />}
       {(panel === 'notes' || panel === 'bookmarks') && <>
         {panel === 'notes' && <button disabled={!active || !position} onClick={() => position && setDraft({ text: '', position })}>写笔记</button>}

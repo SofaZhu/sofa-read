@@ -72,6 +72,15 @@ try {
       await page.screenshot({ path: process.env.SOFA_TEST_MOBILE_SCREENSHOT })
     }
     await page.getByRole('button', { name: '关闭面板' }).tap()
+    await page.touchscreen.tap(195, 420)
+    await page.getByRole('button', { name: '全文搜索', exact: true }).tap()
+    const searchPage = page.getByRole('complementary', { name: '全文搜索' })
+    assert.equal((await searchPage.boundingBox()).height, 844)
+    await searchPage.getByLabel('搜索关键词').fill('手机测试')
+    await searchPage.getByRole('button', { name: '搜索', exact: true }).tap()
+    await searchPage.getByText('找到 1 条匹配').waitFor()
+    assert.equal(await searchPage.locator('mark').textContent(), '手机测试')
+    await searchPage.getByRole('button', { name: '返回阅读页' }).tap()
     async function swipeBack() {
       if (system === 'android') return page.evaluate(() => window.testNativeBack())
       const frame = page.frames().find(frame => frame.url().startsWith('blob:'))
@@ -93,7 +102,7 @@ try {
     assert.deepEqual(errors, [])
     await page.close()
   }
-  console.log('移动界面冒烟通过：触屏导入、手机宽度、电量、本机字体、平台设置可见性和二次滑动返回。')
+  console.log('移动界面冒烟通过：触屏导入、手机宽度、电量、本机字体、全屏搜索、平台设置可见性和二次滑动返回。')
 } finally {
   await browser?.close()
   server.close()

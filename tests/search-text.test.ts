@@ -9,8 +9,8 @@ describe('全文搜索文本长度', () => {
   it('将命中词留在最长五十字符的片段里', () => {
     const prefix = '前'.repeat(80)
     const query = '命中'.repeat(10)
-    const excerpt = searchExcerpt(prefix + query + '后'.repeat(80), prefix.length)
-    expect(excerpt).toContain(query)
-    expect(Array.from(excerpt)).toHaveLength(50)
+    const excerpt = searchExcerpt(prefix + query + '后'.repeat(80), prefix.length, query.length)
+    expect(excerpt.match).toBe(query)
+    expect(Array.from(excerpt.before + excerpt.match + excerpt.after)).toHaveLength(50)
   })
 })
