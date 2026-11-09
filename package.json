@@ -1,0 +1,63 @@
+{
+  "name": "sofa-read",
+  "version": "0.1.0",
+  "private": true,
+  "description": "本地电子书阅读器",
+  "license": "GPL-3.0-only",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "start": "electron-vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "package": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder",
+    "test:smoke": "npm run build && node tests/smoke.mjs",
+    "mobile:sync": "npm run build && cap sync",
+    "android:debug": "npm run mobile:sync && cd android && \"${GRADLE_BIN:-./gradlew}\" :app:assembleDebug",
+    "ios:open": "npm run mobile:sync && cap open ios",
+    "test:mobile": "npm run build && node tests/mobile.mjs"
+  },
+  "build": {
+    "appId": "com.sofazhu.sofa-read",
+    "productName": "Sofa Read",
+    "files": [
+      "out/**/*"
+    ],
+    "directories": {
+      "output": "release"
+    }
+  },
+  "dependencies": {
+    "@capacitor/android": "8.6.0",
+    "@capacitor/core": "8.6.0",
+    "@capacitor/device": "8.0.3",
+    "@capacitor/ios": "8.6.0",
+    "@fontpkg/alimama-shu-hei-ti": "1.0.5",
+    "@fontsource/lato": "5.3.0",
+    "@ray-d-song/foliate-js": "0.0.1",
+    "alibabapuhuiti-3-65-medium": "1.0.0",
+    "pdfjs-dist": "5.5.207",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.6.0",
+    "@types/node": "22.20.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "electron": "40.10.6",
+    "electron-builder": "26.18.0",
+    "electron-vite": "6.0.0",
+    "jszip": "3.10.2",
+    "pdf-lib": "1.17.1",
+    "playwright-core": "1.65.0",
+    "typescript": "5.9.3",
+    "vite": "8.3.6",
+    "vitest": "5.1.0"
+  },
+  "engines": {
+    "node": ">=22.12"
+  }
+}
