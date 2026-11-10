@@ -5,6 +5,8 @@ import { readSettings, type Book, type Mark, type Position, type Settings } from
 import { readData, saveData, type ReadingData } from './reading-data'
 import { Shelf } from './shelf'
 import { Reader } from './reader'
+import { downloadId, saveDownload } from './downloaded-library'
+import { sourceDownload, type SourceBook } from './source-client'
 import './styles.css'
 
 function App() {
@@ -16,6 +18,7 @@ function App() {
   const [settings, setSettings] = useState(readSettings)
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
+  const downloads = useRef(new Map<string, Promise<Book>>())
 
   const updateData = useCallback((next: ReadingData) => {
     dataRef.current = next
@@ -66,6 +69,25 @@ function App() {
     }
   }
 
+  function download(source: SourceBook) {
+    const id = downloadId(source.id)
+    const existing = books.find(book => book.id === id)
+    if (existing) return Promise.resolve(existing)
+    const pending = downloads.current.get(id)
+    if (pending) return pending
+    const format = source.format
+    if (!format) return Promise.reject(new Error('这本书暂未提供下载。'))
+    const task = (async () => {
+      const content = await sourceDownload(source)
+      const book = { id, name: source.title, format, added: Date.now(), bytes: content.size }
+      await saveDownload(book, content)
+      setBooks(previous => [...previous.filter(item => item.id !== id), book])
+      return book
+    })().finally(() => downloads.current.delete(id))
+    downloads.current.set(id, task)
+    return task
+  }
+
   async function remove(book: Book) {
     if (!window.confirm(`从书架移除《${book.name}》及其阅读记录？`)) return
     try {
@@ -104,7 +126,7 @@ function App() {
   return <>
     <div hidden={!!active}>
       {!libraryReady ? <p className="library-loading" role="status">正在读取书库…</p> : <Shelf books={books} data={data} open={setActive} busy={busy} update={updateData}
-        importBooks={() => void importBooks()} remove={book => void remove(book)} />}
+        importBooks={() => void importBooks()} download={download} remove={book => void remove(book)} />}
     </div>
     {active && <Reader key={active.id} book={active} data={data.books[active.id] ?? {}} settings={settings}
       savePosition={updatePosition} saveMarks={updateMarks} saveSettings={saveSettings} relink={relink} back={() => setActive(null)} />}

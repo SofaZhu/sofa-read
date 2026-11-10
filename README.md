@@ -4,7 +4,8 @@
 
 ## 阅读与书架
 
-- 通过系统文件选择器导入 EPUB、PDF、TXT、FB2、FBZ、FB2.ZIP、MOBI、AZW、AZW3 和 CBZ。书架只保存原文件引用，支持原文件移动后的重新定位。
+- 通过系统文件选择器导入 EPUB、PDF、TXT、FB2、FBZ、FB2.ZIP、MOBI、AZW、AZW3 和 CBZ。本地导入只保存原文件引用，支持原文件移动后的重新定位。
+- 网络导入可解锁内置书源。已下载的 EPUB 和 TXT 保存到本机书架，支持离线阅读。提供在线章节的书籍可以在书源页按目录跳转。书源按每批二十本下滑续载，支持网文分类和按书名或作者搜索已解锁的书源。
 - 书架支持自建分类，按导入时间或书名首字母排序。中文书名按拼音排序。有记录时默认进入阅读记录，显示最近五本书。最近在读的一本放在顶部，可直接继续。
 - 读取原书目录。纯文本识别中文章回、英文章节和 Markdown 标题。没有目录时按章节、正文分段或 PDF 页码提供入口。
 - 记录阅读位置，支持添加书签及编写、编辑和跳转笔记。书架和阅读数据保存在本机。
@@ -50,9 +51,10 @@ npm run ios:open
 npm run typecheck
 npm test
 npm run test:smoke
+node tests/sources.mjs
 SOFA_TEST_CHROME='/本机/Chrome/可执行文件' npm run test:mobile
 ```
 
-桌面冒烟测试使用临时用户目录，通过真实 Electron 窗口测试文件导入、分类排序、目录、续读、标注和重新定位。可设置 `SOFA_TEST_AZW` 与 `SOFA_TEST_AZW3` 指定自备的无 DRM 测试书。移动界面冒烟测试在手机尺寸下使用模拟的原生文件接口，验证触屏界面和平台设置。原生文件选择、音量键和系统息屏行为需在各平台真机上检查。
+桌面冒烟测试使用临时用户目录，通过真实 Electron 窗口测试文件导入、分类排序、目录、续读、标注和重新定位。可设置 `SOFA_TEST_AZW` 与 `SOFA_TEST_AZW3` 指定自备的无 DRM 测试书。书源测试默认模拟远端响应，也可设置 `SOFA_TEST_LIVE_SOURCES=1` 核验真实书源。移动界面冒烟测试在手机尺寸下模拟原生文件和网络接口，验证触屏界面、平台设置和下载入库。原生文件选择、音量键和系统息屏行为需在各平台真机上检查。
 
 阅读解析使用 [Foliate.js](https://github.com/johnfactotum/foliate-js) 和 [PDF.js](https://mozilla.github.io/pdf.js/)。字体按各自授权使用，参见 [Lato](https://www.latofonts.com/)、[阿里巴巴字体库](https://fonts.alibabagroup.com/)。

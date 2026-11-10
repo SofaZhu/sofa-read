@@ -2,6 +2,7 @@ import { app, BrowserWindow, globalShortcut, ipcMain, net, powerMonitor, powerSa
 import { join, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { registerLibrary } from './library'
+import { registerSourceNetwork } from './source-network'
 
 protocol.registerSchemesAsPrivileged([
   { scheme: 'sofa', privileges: { standard: true, secure: true, supportFetchAPI: true } }
@@ -118,6 +119,7 @@ void app.whenReady().then(() => {
     if (blocker !== undefined) powerSaveBlocker.stop(blocker)
   })
   registerLibrary(() => window)
+  registerSourceNetwork(() => window)
   createWindow()
   app.on('activate', () => {
     if (!window) createWindow()

@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type { Desktop } from '../shared/desktop'
 
 const desktop: Desktop = {
+  fetchSource: (url, query) => ipcRenderer.invoke('sources:fetch', url, query),
   listBooks: () => ipcRenderer.invoke('library:list'),
   importBooks: () => ipcRenderer.invoke('library:import'),
   readBook: id => ipcRenderer.invoke('library:read', id),

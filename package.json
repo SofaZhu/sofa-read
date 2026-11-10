@@ -1,6 +1,6 @@
 {
   "name": "sofa-read",
-  "version": "0.1.0",
+  "version": "1.0.1",
   "private": true,
   "description": "本地电子书阅读器",
   "license": "GPL-3.0-only",
@@ -45,6 +45,7 @@
     "@fontsource/lato": "5.3.0",
     "@ray-d-song/foliate-js": "0.0.1",
     "alibabapuhuiti-3-65-medium": "1.0.0",
+    "jszip": "3.10.2",
     "pdfjs-dist": "5.5.207",
     "react": "19.3.1",
     "react-dom": "19.3.1"
@@ -57,7 +58,6 @@
     "electron": "40.10.6",
     "electron-builder": "26.18.0",
     "electron-vite": "6.0.0",
-    "jszip": "3.10.2",
     "pdf-lib": "1.17.1",
     "playwright-core": "1.65.0",
     "typescript": "5.9.3",

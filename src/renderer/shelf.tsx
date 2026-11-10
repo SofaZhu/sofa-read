@@ -2,6 +2,8 @@ import { useState } from 'react'
 import logo from './assets/sofa-read.svg?url'
 import { getCover, type ReadingData } from './reading-data'
 import type { Book } from './model'
+import { saveUnlockedSources, unlockedSources, type Source, type SourceBook } from './source-client'
+import { SourceShelf, SourceUnlock } from './source-shelf'
 
 const byTitle = new Intl.Collator('zh-Hans-u-co-pinyin', { numeric: true, sensitivity: 'base' })
 const colors = ['#475945', '#9c593e', '#324f62', '#70628a', '#ac7e41', '#475956']
@@ -23,13 +25,16 @@ interface ShelfProps {
   data: ReadingData
   open(book: Book): void
   importBooks(): void
+  download(book: SourceBook): Promise<Book>
   busy: boolean
   remove(book: Book): void
   update(data: ReadingData): void
 }
 
-export function Shelf({ books, data, open, importBooks, busy, remove, update }: ShelfProps) {
-  const [chosenTab, setTab] = useState<'shelf' | 'history' | null>(null)
+export function Shelf({ books, data, open, importBooks, download, busy, remove, update }: ShelfProps) {
+  const [chosenTab, setTab] = useState<'shelf' | 'history' | 'sources' | null>(null)
+  const [sources, setSources] = useState(unlockedSources)
+  const [source, setSource] = useState<Source>()
   const [filter, setFilter] = useState<string | null>(null)
   const [sort, setSort] = useState(localStorage.getItem('shelf-sort') ?? 'date')
   const [category, setCategory] = useState('')
@@ -38,6 +43,14 @@ export function Shelf({ books, data, open, importBooks, busy, remove, update }: 
   const history = books.filter(book => data.books[book.id]?.lastRead)
     .sort((a, b) => (data.books[b.id].lastRead ?? 0) - (data.books[a.id].lastRead ?? 0)).slice(0, 5)
   const tab = chosenTab ?? (history.length ? 'history' : 'shelf')
+
+  function unlock(item: Source) {
+    const next = sources.includes(item) ? sources : [...sources, item]
+    saveUnlockedSources(next)
+    setSources(next)
+    setSource(item)
+    setTab('sources')
+  }
 
   function addCategory() {
     const name = category.trim()
@@ -52,10 +65,15 @@ export function Shelf({ books, data, open, importBooks, busy, remove, update }: 
       <nav aria-label="书库">
         <button className={tab === 'shelf' ? 'selected' : ''} onClick={() => setTab('shelf')}>书架</button>
         <button className={tab === 'history' ? 'selected' : ''} onClick={() => setTab('history')}>阅读记录</button>
+        {sources.length > 0 && <button className={tab === 'sources' ? 'selected' : ''} onClick={() => setTab('sources')}>书源</button>}
       </nav>
-      <button className="primary" onClick={importBooks} disabled={busy}>{busy ? '正在导入…' : '＋ 导入书籍'}</button>
+      <div className="library-imports">
+        <button className="primary" onClick={importBooks} disabled={busy}>{busy ? '正在导入…' : '＋ 导入书籍'}</button>
+        <SourceUnlock accept={unlock} />
+      </div>
     </header>
-    {tab === 'shelf' ? <div className="library-body">
+    {tab === 'sources' ? <SourceShelf key={source ?? sources[0]} source={source ?? sources[0]}
+      sources={sources} choose={setSource} books={books} download={download} open={open} /> : tab === 'shelf' ? <div className="library-body">
       <aside className="categories">
         <h2>分类</h2>
         <button className={filter === null ? 'selected' : ''} onClick={() => setFilter(null)}>全部书籍 <span>{books.length}</span></button>

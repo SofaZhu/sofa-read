@@ -2,6 +2,7 @@ import { Capacitor, registerPlugin, type PluginListenerHandle } from '@capacitor
 import { Device } from '@capacitor/device'
 import { identifyFormat, type Book } from '../shared/book'
 import type { Desktop } from '../shared/desktop'
+import { isDownload, listDownloads, readDownload, removeDownload } from './downloaded-library'
 
 interface DocumentReference {
   name: string
@@ -209,7 +210,27 @@ function mobilePlatform(): Desktop {
   }
 }
 
-export const platform = mobile ? mobilePlatform() : window.desktop
+const localPlatform = mobile ? mobilePlatform() : window.desktop
+
+export const platform: Desktop = {
+  ...localPlatform,
+  async listBooks() {
+    const local = await localPlatform.listBooks()
+    try {
+      return [...local, ...await listDownloads()]
+    } catch (error) {
+      console.warn('无法读取已下载书籍', error)
+      return local
+    }
+  },
+  async readBook(id, signal) {
+    if (!isDownload(id)) return localPlatform.readBook(id, signal)
+    const content = await readDownload(id)
+    return signal?.aborted ? null : content ?? null
+  },
+  relinkBook: id => isDownload(id) ? Promise.resolve(null) : localPlatform.relinkBook(id),
+  removeBook: id => isDownload(id) ? removeDownload(id) : localPlatform.removeBook(id)
+}
 
 export async function listFonts(): Promise<string[]> {
   if (mobile) return (await native.fonts()).families
